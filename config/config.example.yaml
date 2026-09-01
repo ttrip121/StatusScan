@@ -1,0 +1,99 @@
+# Stuck-Task Digest configuration template.
+#
+# Copy this file to config/config.yaml and fill it in. Secrets (tokens, passwords) should NOT
+# be hardcoded here - reference an environment variable with ${VAR_NAME} instead, and put the
+# actual value in a .env file (see .env.example) or your shell/secrets manager. config.py
+# resolves ${VAR_NAME} references at load time and loads .env automatically if present.
+
+# ----------------------------------------------------------------------------------------
+# Anthropic API - used by classifier.py to determine why each flagged task is stuck.
+# ----------------------------------------------------------------------------------------
+anthropic:
+  api_key: ${ANTHROPIC_API_KEY}
+  model: claude-opus-5   # swap for claude-sonnet-5 or claude-haiku-4-5 to cut cost/latency
+
+# ----------------------------------------------------------------------------------------
+# Context search (Slack/Teams/Outlook keyword search) settings.
+# ----------------------------------------------------------------------------------------
+context_search:
+  lookback_days: 14   # how far back to search for messages mentioning a flagged task
+
+# ----------------------------------------------------------------------------------------
+# Digest schedule - when to run and email the digest. Times are HH:MM 24-hour, in `timezone`.
+# ----------------------------------------------------------------------------------------
+schedule:
+  times:
+    - "08:00"
+    - "13:00"
+    - "18:00"
+  timezone: "America/New_York"
+
+# ----------------------------------------------------------------------------------------
+# Email delivery.
+# ----------------------------------------------------------------------------------------
+email:
+  recipients:
+    - "pm@example.com"
+  smtp:
+    host: "smtp.example.com"
+    port: 587
+    use_tls: true
+    from_address: "stuck-task-digest@example.com"
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+
+# ----------------------------------------------------------------------------------------
+# Task sources (PM tools). Set active: false to disable one without deleting its config.
+# See README.md for required API scopes per platform.
+# ----------------------------------------------------------------------------------------
+task_sources:
+  asana:
+    active: true
+    access_token: ${ASANA_ACCESS_TOKEN}
+    project_gids:
+      - "1201234567890123"
+    client_facing_tag: "client-facing"
+
+  monday:
+    active: false
+    api_token: ${MONDAY_API_TOKEN}
+    board_ids:
+      - 1234567890
+    due_date_column_id: "date4"
+    status_column_id: "status"
+    done_status_labels: ["Done", "Complete"]
+    tags_column_id: "tags"
+    people_column_id: "people"
+    client_facing_tag: "client-facing"
+
+  # To add ClickUp, Jira, Wrike, etc: create task_sources/<platform>.py implementing the
+  # TaskSource interface (see task_sources/base.py), register it in main.py's
+  # TASK_SOURCE_REGISTRY, then add its config block here.
+
+# ----------------------------------------------------------------------------------------
+# Context sources (communication platforms searched for blocker context). Set active: false
+# to disable one without deleting its config.
+# ----------------------------------------------------------------------------------------
+context_sources:
+  slack:
+    active: true
+    user_token: ${SLACK_USER_TOKEN}   # must be a user token (xoxp-...) - bots can't search
+    match_channel_names: true
+
+  teams:
+    active: false
+    microsoft_graph:
+      tenant_id: ${MS_TENANT_ID}
+      client_id: ${MS_CLIENT_ID}
+      client_secret: ${MS_CLIENT_SECRET}
+
+  outlook:
+    active: false
+    pm_mailbox: "pm@example.com"
+    shared_mailboxes:
+      - "projects@example.com"
+    match_folder_names: true
+    microsoft_graph:
+      tenant_id: ${MS_TENANT_ID}
+      client_id: ${MS_CLIENT_ID}
+      client_secret: ${MS_CLIENT_SECRET}
