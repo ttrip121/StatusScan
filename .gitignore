@@ -1,0 +1,8 @@
+.env
+config/config.yaml
+settings.json
+run_history.json
+__pycache__/
+*.pyc
+.venv/
+venv/
