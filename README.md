@@ -15,9 +15,12 @@ main.py
   4. Search every active ContextSource (Slack, Teams, Outlook) for matching messages
      within the configured lookback window
   5. If matches were found, ask Claude to classify: blocked on the PM, blocked on someone
-     else, or unclear - plus who it's waiting on and a one-sentence reason
-  6. Rank flagged tasks within each category by lateness and client-facing status
-  7. Build a three-section HTML digest and email it
+     else, or unclear - plus who it's waiting on and a reason (detail depends on the
+     configured detail level - see Settings UI below)
+  6. At the "Most" detail level, run one additional synthesis_pass() across every flagged
+     task to surface cross-task patterns and suggested next steps
+  7. Rank flagged tasks within each category by lateness and client-facing status
+  8. Build the HTML digest (Insights section + three ranked sections) and email it
 ```
 
 ### Architecture: two adapter layers
@@ -42,8 +45,10 @@ Every adapter normalizes into a common shape (`models.py`):
 
 ```
 statusscan/
-  models.py                 Task / Message / Classification dataclasses
+  models.py                 Task / Message / Classification / Synthesis dataclasses
   config.py                 Loads config.yaml, interpolates ${ENV_VAR} secrets
+  settings.py                settings.json load/save/bootstrap + detail-level constants
+  run_history.py             Lightweight "last N runs" log for the settings UI
   task_sources/
     base.py                 TaskSource interface
     asana.py
@@ -54,10 +59,14 @@ statusscan/
     slack.py
     teams.py
     outlook.py
-  classifier.py              Anthropic API call + structured JSON parsing
-  digest.py                  Ranking + 3-section HTML digest builder
+  classifier.py              Anthropic API calls: per-task classification + synthesis_pass()
+  digest.py                  Ranking + HTML digest builder (Insights section + 3 sections)
   main.py                    Orchestrates one full run
-  scheduler.py                APScheduler-based scheduler (alternative to cron)
+  scheduler.py                15-minute poller that runs the pipeline on settings.json's schedule
+settings_app.py               Streamlit settings UI - run with `streamlit run settings_app.py`
+settings.json                 Generated on first use - sweep times, detail level, lookback,
+                               recipients, active project/board scope (gitignored)
+run_history.json               Generated on first use - recent-run log for the settings UI (gitignored)
 config/
   config.example.yaml        Config template - copy to config.yaml
 .env.example                 Secrets template - copy to .env
@@ -72,15 +81,52 @@ cp config/config.example.yaml config/config.yaml
 cp .env.example .env
 ```
 
-Fill in `.env` with your credentials, and edit `config/config.yaml` to set which sources are
-active, which projects/boards to scan, your lookback window, schedule, and recipients. See
-the comments in `config.example.yaml` for every field.
+Fill in `.env` with your credentials, and edit `config/config.yaml` for credentials, which
+sources are active, and their starting scope. See the comments in `config.example.yaml` for
+every field.
 
 Run one pass by hand:
 
 ```bash
 python -m statusscan.main
 ```
+
+The first run (or the first time you open the settings UI) creates `settings.json`,
+bootstrapped from whatever was already in `config.yaml`. After that, use the settings UI
+(below) to change sweep frequency, detail level, lookback window, recipients, and active
+project/board scope — `config.yaml` is no longer consulted for those fields.
+
+## Settings UI
+
+```bash
+streamlit run settings_app.py
+```
+
+A local page for the PM to adjust the knobs they actually change day-to-day, without editing
+YAML:
+
+- **Sweep frequency** — add/remove times of day StatusScan runs. The poller (see
+  *Scheduling* below) checks `settings.json` every 15 minutes and fires any slot whose time
+  has been reached, so a change here takes effect on the next check — no restart.
+- **Digest detail level** — `Some` / `More` / `Most`, each with a one-line description (see
+  *Detail levels* below).
+- **Lookback window, email recipients, active projects/boards** — the config fields a PM
+  tunes most often, surfaced here for convenience. Credentials and which sources are *active*
+  still live only in `config.yaml`/`.env`.
+- **Recent runs** — the last 5 runs (timestamp, tasks flagged, recipients sent to), once
+  `run_history.json` has at least one entry. Hidden until then.
+
+Settings persist to `settings.json`, read by both this app and the pipeline
+(`main.py`/`scheduler.py`) — there's exactly one file to keep in sync, and it's gitignored
+since it's local runtime state, not shared config.
+
+### Detail levels
+
+| Level | Behavior |
+|-------|----------|
+| **Some** | Structured fields only (`blocked_on`, `waiting_on`, `reason`, `confidence`) — `reason` is one flat, factual sentence. |
+| **More** | Same fields, but `reason` becomes 2-3 sentences of narrative framing. |
+| **Most** | Same as More, plus a `synthesis_pass()` step: after every flagged task is classified, one additional Anthropic call looks across all of them for cross-task patterns (e.g. several tasks blocked on the same person) and suggests 2-4 concrete next steps. Rendered as an "Insights & Suggested Next Steps" section at the top of the digest, above the three normal sections. |
 
 ## Required API scopes / permissions per platform
 
@@ -162,20 +208,24 @@ reference the same block from both `teams` and `outlook` in config.
 
 ## Scheduling
 
-The default schedule is 3x/day — 8:00 AM, 1:00 PM, 6:00 PM — fully customizable via
-`schedule.times` and `schedule.timezone` in config. Two ways to run it:
+The default schedule is 3x/day — 8:00 AM, 1:00 PM, 6:00 PM — fully customizable from the
+settings UI (`sweep_times` in `settings.json`). Two ways to run it:
 
-### Option A: APScheduler (long-running process)
+### Option A: the poller (recommended - frequency changes take effect live)
 
 ```bash
 python -m statusscan.scheduler
 ```
 
-Keep it alive with your process manager of choice. Example `systemd` unit:
+A long-running loop that checks `settings.json` every 15 minutes and runs the digest
+pipeline once the current time reaches any configured slot (each slot fires once per day).
+Because it re-reads `settings.json` on every check, changing sweep times in the settings UI
+takes effect within 15 minutes — no restart. Keep it alive with your process manager of
+choice. Example `systemd` unit:
 
 ```ini
 [Unit]
-Description=StatusScan scheduler
+Description=StatusScan poller
 After=network.target
 
 [Service]
@@ -190,16 +240,17 @@ WantedBy=multi-user.target
 
 ### Option B: plain cron (no long-running process)
 
-Run `python -m statusscan.main` directly at each configured time — cron owns the
-schedule instead of APScheduler. Matches the default 8am/1pm/6pm schedule:
+Run `python -m statusscan.main` directly at fixed times — cron owns the schedule instead of
+the poller:
 
 ```cron
 0 8,13,18 * * * cd /opt/statusscan && /opt/statusscan/.venv/bin/python -m statusscan.main >> /var/log/statusscan.log 2>&1
 ```
 
-Update the hours in both the crontab and `config/config.yaml`'s `schedule.times` if you
-change the schedule, so the two stay in sync (cron doesn't read `config.yaml`'s schedule
-block — `config.yaml`'s schedule is only consulted by `scheduler.py`).
+Trade-off: cron doesn't read `settings.json`'s `sweep_times`, so changing sweep frequency in
+the settings UI has no effect here — you'd need to edit the crontab too. Everything else the
+settings UI controls (detail level, lookback window, recipients, active scope) still applies,
+since `main.py` reads `settings.json` on every run regardless of what triggered it.
 
 ## Adding a new PM tool or communication platform
 

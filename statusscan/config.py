@@ -85,14 +85,6 @@ class Config:
         return int(self.get("context_search", "lookback_days", default=14))
 
     @property
-    def schedule_times(self) -> List[str]:
-        return self.get("schedule", "times", default=["08:00", "13:00", "18:00"])
-
-    @property
-    def timezone(self) -> str:
-        return self.get("schedule", "timezone", default="UTC")
-
-    @property
     def email_recipients(self) -> List[str]:
         return self.get("email", "recipients", default=[])
 
@@ -107,3 +99,24 @@ class Config:
     def active_context_sources(self) -> Dict[str, Any]:
         sources = self.get("context_sources", default={}) or {}
         return {name: cfg for name, cfg in sources.items() if cfg.get("active")}
+
+    # -- settings.json overlay -----------------------------------------------
+    # Sweep frequency, lookback window, recipients, and active project/board scope are owned
+    # by settings.json once it exists (see settings.py) so the settings UI can change them
+    # without touching config.yaml. This mutates the loaded config in place so every property
+    # above stays the single source of truth for the rest of the pipeline.
+
+    def apply_settings_overrides(self, settings: Dict[str, Any]) -> None:
+        self._raw.setdefault("context_search", {})["lookback_days"] = settings["lookback_days"]
+        self._raw.setdefault("email", {})["recipients"] = list(settings["recipients"])
+
+        task_sources = self._raw.setdefault("task_sources", {})
+        active_scope = settings.get("active_scope", {}) or {}
+
+        asana_scope = active_scope.get("asana")
+        if asana_scope is not None and "asana" in task_sources:
+            task_sources["asana"]["project_gids"] = list(asana_scope.get("project_gids", []))
+
+        monday_scope = active_scope.get("monday")
+        if monday_scope is not None and "monday" in task_sources:
+            task_sources["monday"]["board_ids"] = list(monday_scope.get("board_ids", []))

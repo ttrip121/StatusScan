@@ -14,22 +14,18 @@ anthropic:
 
 # ----------------------------------------------------------------------------------------
 # Context search (Slack/Teams/Outlook keyword search) settings.
+#
+# lookback_days below is only the STARTING value. Once settings.json exists (created
+# automatically the first time you run `streamlit run settings_app.py` or the pipeline
+# itself), it becomes the source of truth for lookback_days, sweep frequency, email
+# recipients, and each active source's project/board scope - this file is no longer
+# consulted for those fields. See settings.py and README.md's "Settings UI" section.
 # ----------------------------------------------------------------------------------------
 context_search:
   lookback_days: 14   # how far back to search for messages mentioning a flagged task
 
 # ----------------------------------------------------------------------------------------
-# Digest schedule - when to run and email the digest. Times are HH:MM 24-hour, in `timezone`.
-# ----------------------------------------------------------------------------------------
-schedule:
-  times:
-    - "08:00"
-    - "13:00"
-    - "18:00"
-  timezone: "America/New_York"
-
-# ----------------------------------------------------------------------------------------
-# Email delivery.
+# Email delivery. `recipients` here is only the starting value - see the note above.
 # ----------------------------------------------------------------------------------------
 email:
   recipients:
@@ -44,7 +40,10 @@ email:
 
 # ----------------------------------------------------------------------------------------
 # Task sources (PM tools). Set active: false to disable one without deleting its config.
-# See README.md for required API scopes per platform.
+# See README.md for required API scopes per platform. `active` (and every credential field)
+# is only ever read from here. `project_gids` / `board_ids` below are just the starting
+# scope - once settings.json exists, the "Active projects / boards" section of the settings
+# UI (settings_app.py) owns them instead.
 # ----------------------------------------------------------------------------------------
 task_sources:
   asana:

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import html
 from datetime import date
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from statusscan.models import FlaggedTask
+from statusscan.models import FlaggedTask, Synthesis
 
 SECTION_EXTERNAL = "external"
 SECTION_PM = "pm"
@@ -126,9 +126,36 @@ def _section_html(section_key: str, flagged_tasks: List[FlaggedTask], today: dat
     </table>"""
 
 
-def build_html_digest(buckets: Dict[str, List[FlaggedTask]], today: date) -> str:
-    """Assemble the full HTML digest email body from the three ranked buckets."""
+def _synthesis_html(synthesis: Optional[Synthesis]) -> str:
+    """Renders the "Insights & Suggested Next Steps" section - only produced at detail_level
+    "most", so this returns "" whenever synthesis is None."""
+    if synthesis is None:
+        return ""
+
+    patterns_html = "".join(f"<li>{html.escape(p)}</li>" for p in synthesis.patterns) or (
+        '<li style="color:#999;">No cross-task patterns found.</li>'
+    )
+    steps_html = "".join(f"<li>{html.escape(s)}</li>" for s in synthesis.next_steps)
+
+    return f"""
+    <div style="background:#f0f7ff;border:1px solid #cfe3fb;border-radius:6px;padding:16px;margin-bottom:16px;font-family:Arial,Helvetica,sans-serif;">
+      <h2 style="font-size:16px;margin:0 0 10px;color:#1a4d8f;">Insights &amp; Suggested Next Steps</h2>
+      <div style="font-size:13px;color:#333;">
+        <strong>Patterns</strong>
+        <ul style="margin:4px 0 12px 20px;padding:0;">{patterns_html}</ul>
+        <strong>Suggested next steps</strong>
+        <ul style="margin:4px 0 0 20px;padding:0;">{steps_html}</ul>
+      </div>
+    </div>"""
+
+
+def build_html_digest(
+    buckets: Dict[str, List[FlaggedTask]], today: date, synthesis: Optional[Synthesis] = None
+) -> str:
+    """Assemble the full HTML digest email body from the three ranked buckets, plus an
+    optional Insights & Suggested Next Steps section (detail_level "most" only)."""
     total = sum(len(v) for v in buckets.values())
+    synthesis_html = _synthesis_html(synthesis)
     sections_html = "".join(
         _section_html(key, buckets.get(key, []), today)
         for key in (SECTION_EXTERNAL, SECTION_PM, SECTION_NO_CONTEXT)
@@ -141,6 +168,7 @@ def build_html_digest(buckets: Dict[str, List[FlaggedTask]], today: date) -> str
   <div style="max-width:680px;margin:0 auto;padding:24px;background:#ffffff;font-family:Arial,Helvetica,sans-serif;">
     <h1 style="font-size:20px;margin:0 0 4px;color:#111;">StatusScan</h1>
     <div style="color:#777;font-size:13px;margin-bottom:8px;">{today.strftime('%A, %B %d, %Y')} • {total} flagged task(s)</div>
+    {synthesis_html}
     {sections_html}
   </div>
 </body>

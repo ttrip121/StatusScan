@@ -82,3 +82,12 @@ class FlaggedTask:
     task: Task
     matched_messages: List[Message] = field(default_factory=list)
     classification: Optional[Classification] = None
+
+
+@dataclass
+class Synthesis:
+    """Result of classifier.py's synthesis_pass() - only produced at the "most" detail level.
+    Rendered as the digest's "Insights & Suggested Next Steps" section."""
+
+    patterns: List[str]
+    next_steps: List[str]

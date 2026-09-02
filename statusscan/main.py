@@ -26,6 +26,8 @@ from statusscan.context_sources.slack import SlackSource
 from statusscan.context_sources.teams import TeamsSource
 from statusscan.digest import build_html_digest, rank_flagged_tasks
 from statusscan.models import FlaggedTask, Task
+from statusscan.run_history import record_run
+from statusscan.settings import DEFAULT_DETAIL_LEVEL, SETTINGS_PATH_DEFAULT, load_or_bootstrap_settings
 from statusscan.task_sources.asana import AsanaSource
 from statusscan.task_sources.base import TaskSource
 from statusscan.task_sources.monday import MondaySource
@@ -99,10 +101,14 @@ def gather_context(
     return messages
 
 
-def run_once(config_path: str = "config/config.yaml") -> None:
+def run_once(
+    config_path: str = "config/config.yaml", settings_path: str = SETTINGS_PATH_DEFAULT
+) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     config = Config.load(config_path)
+    settings = load_or_bootstrap_settings(config, settings_path)
+    config.apply_settings_overrides(settings)
     today = date.today()
 
     task_sources = build_task_sources(config)
@@ -116,7 +122,10 @@ def run_once(config_path: str = "config/config.yaml") -> None:
     flagged = flag_late_or_due_today(all_tasks, today)
     logger.info("%d of %d task(s) are late or due today", len(flagged), len(all_tasks))
 
-    classifier = Classifier(api_key=config.anthropic_api_key, model=config.anthropic_model)
+    detail_level = settings.get("detail_level", DEFAULT_DETAIL_LEVEL)
+    classifier = Classifier(
+        api_key=config.anthropic_api_key, model=config.anthropic_model, detail_level=detail_level
+    )
 
     flagged_tasks: List[FlaggedTask] = []
     for task in flagged:
@@ -132,19 +141,28 @@ def run_once(config_path: str = "config/config.yaml") -> None:
                 logger.exception("Classification failed for task '%s'; treating as unclear", task.name)
         flagged_tasks.append(flagged_task)
 
+    synthesis = None
+    if detail_level == "most" and flagged_tasks:
+        try:
+            synthesis = classifier.synthesis_pass(flagged_tasks, today)
+        except Exception:
+            logger.exception("Synthesis pass failed; digest will omit the Insights section")
+
     buckets = rank_flagged_tasks(flagged_tasks, today)
-    html_body = build_html_digest(buckets, today)
+    html_body = build_html_digest(buckets, today, synthesis=synthesis)
 
-    send_email(config, html_body, today)
-    logger.info("Digest sent: %d waiting-on-others, %d needs-attention, %d no-context-found",
-                len(buckets["external"]), len(buckets["pm"]), len(buckets["no_context_found"]))
+    sent_count = send_email(config, html_body, today)
+    record_run(flagged_count=len(flagged_tasks), sent_count=sent_count)
+    logger.info("Digest sent to %d recipient(s): %d waiting-on-others, %d needs-attention, %d no-context-found",
+                sent_count, len(buckets["external"]), len(buckets["pm"]), len(buckets["no_context_found"]))
 
 
-def send_email(config: Config, html_body: str, today: date) -> None:
+def send_email(config: Config, html_body: str, today: date) -> int:
+    """Returns the number of recipients the digest was sent to (0 if skipped or failed)."""
     recipients = config.email_recipients
     if not recipients:
         logger.warning("No email recipients configured - skipping send. Digest was still built.")
-        return
+        return 0
 
     smtp_cfg = config.smtp
     message = MIMEMultipart("alternative")
@@ -166,14 +184,19 @@ def send_email(config: Config, html_body: str, today: date) -> None:
             server.login(username, password)
         server.sendmail(smtp_cfg["from_address"], recipients, message.as_string())
 
+    return len(recipients)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run one StatusScan pass.")
     parser.add_argument(
         "--config", default="config/config.yaml", help="Path to config.yaml (default: config/config.yaml)"
     )
+    parser.add_argument(
+        "--settings", default=SETTINGS_PATH_DEFAULT, help="Path to settings.json (default: settings.json)"
+    )
     args = parser.parse_args()
-    run_once(config_path=args.config)
+    run_once(config_path=args.config, settings_path=args.settings)
 
 
 if __name__ == "__main__":
