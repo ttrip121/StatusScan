@@ -6,7 +6,7 @@ import html
 from datetime import date
 from typing import Dict, List
 
-from stuck_task_digest.models import FlaggedTask
+from statusscan.models import FlaggedTask
 
 SECTION_EXTERNAL = "external"
 SECTION_PM = "pm"
@@ -139,7 +139,7 @@ def build_html_digest(buckets: Dict[str, List[FlaggedTask]], today: date) -> str
 <head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f7f7f7;">
   <div style="max-width:680px;margin:0 auto;padding:24px;background:#ffffff;font-family:Arial,Helvetica,sans-serif;">
-    <h1 style="font-size:20px;margin:0 0 4px;color:#111;">Stuck-Task Digest</h1>
+    <h1 style="font-size:20px;margin:0 0 4px;color:#111;">StatusScan</h1>
     <div style="color:#777;font-size:13px;margin-bottom:8px;">{today.strftime('%A, %B %d, %Y')} • {total} flagged task(s)</div>
     {sections_html}
   </div>

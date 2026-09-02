@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from stuck_task_digest.models import Task
+from statusscan.models import Task
 
 
 class TaskSource(ABC):

@@ -3,7 +3,7 @@ rank -> build digest -> email it.
 
 Run directly for a one-off pass:
 
-    python -m stuck_task_digest.main
+    python -m statusscan.main
 
 Or import run_once() from scheduler.py to run on a schedule.
 """
@@ -18,19 +18,19 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, List, Type
 
-from stuck_task_digest.classifier import Classifier
-from stuck_task_digest.config import Config
-from stuck_task_digest.context_sources.base import ContextSource
-from stuck_task_digest.context_sources.outlook import OutlookSource
-from stuck_task_digest.context_sources.slack import SlackSource
-from stuck_task_digest.context_sources.teams import TeamsSource
-from stuck_task_digest.digest import build_html_digest, rank_flagged_tasks
-from stuck_task_digest.models import FlaggedTask, Task
-from stuck_task_digest.task_sources.asana import AsanaSource
-from stuck_task_digest.task_sources.base import TaskSource
-from stuck_task_digest.task_sources.monday import MondaySource
+from statusscan.classifier import Classifier
+from statusscan.config import Config
+from statusscan.context_sources.base import ContextSource
+from statusscan.context_sources.outlook import OutlookSource
+from statusscan.context_sources.slack import SlackSource
+from statusscan.context_sources.teams import TeamsSource
+from statusscan.digest import build_html_digest, rank_flagged_tasks
+from statusscan.models import FlaggedTask, Task
+from statusscan.task_sources.asana import AsanaSource
+from statusscan.task_sources.base import TaskSource
+from statusscan.task_sources.monday import MondaySource
 
-logger = logging.getLogger("stuck_task_digest")
+logger = logging.getLogger("statusscan")
 
 TASK_SOURCE_REGISTRY: Dict[str, Type[TaskSource]] = {
     "asana": AsanaSource,
@@ -148,7 +148,7 @@ def send_email(config: Config, html_body: str, today: date) -> None:
 
     smtp_cfg = config.smtp
     message = MIMEMultipart("alternative")
-    message["Subject"] = f"Stuck-Task Digest — {today.strftime('%b %d, %Y')}"
+    message["Subject"] = f"StatusScan — {today.strftime('%b %d, %Y')}"
     message["From"] = smtp_cfg["from_address"]
     message["To"] = ", ".join(recipients)
     message.attach(MIMEText(html_body, "html"))
@@ -168,7 +168,7 @@ def send_email(config: Config, html_body: str, today: date) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run one Stuck-Task Digest pass.")
+    parser = argparse.ArgumentParser(description="Run one StatusScan pass.")
     parser.add_argument(
         "--config", default="config/config.yaml", help="Path to config.yaml (default: config/config.yaml)"
     )

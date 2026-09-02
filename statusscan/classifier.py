@@ -10,7 +10,7 @@ from typing import List, Literal, Optional
 import anthropic
 from pydantic import BaseModel
 
-from stuck_task_digest.models import Classification, Message, Task
+from statusscan.models import Classification, Message, Task
 
 # How many of the most recent matched messages to include in the prompt per task - keeps the
 # request small and focused on the freshest signal.

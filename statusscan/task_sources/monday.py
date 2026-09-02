@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from stuck_task_digest.task_sources.base import TaskSource
+from statusscan.task_sources.base import TaskSource
 
 MONDAY_API_URL = "https://api.monday.com/v2"
 

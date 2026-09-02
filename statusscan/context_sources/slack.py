@@ -25,8 +25,8 @@ from typing import Any, Dict, List
 
 import requests
 
-from stuck_task_digest.context_sources.base import ContextSource
-from stuck_task_digest.models import Message
+from statusscan.context_sources.base import ContextSource
+from statusscan.models import Message
 
 SLACK_API_BASE = "https://slack.com/api"
 

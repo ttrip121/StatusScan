@@ -10,7 +10,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
-from stuck_task_digest.models import Message
+from statusscan.models import Message
 
 
 class ContextSource(ABC):

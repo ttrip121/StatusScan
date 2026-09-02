@@ -4,7 +4,7 @@ for the plain-cron setup if you'd rather not keep a long-running process.
 
 Usage:
 
-    python -m stuck_task_digest.scheduler [--config config/config.yaml]
+    python -m statusscan.scheduler [--config config/config.yaml]
 
 Runs in the foreground; use your process manager of choice (systemd, supervisor, tmux, a
 Docker restart policy, ...) to keep it alive.
@@ -17,10 +17,10 @@ import logging
 
 from apscheduler.schedulers.blocking import BlockingScheduler
 
-from stuck_task_digest.config import Config
-from stuck_task_digest.main import run_once
+from statusscan.config import Config
+from statusscan.main import run_once
 
-logger = logging.getLogger("stuck_task_digest.scheduler")
+logger = logging.getLogger("statusscan.scheduler")
 
 
 def _parse_hhmm(value: str):
@@ -55,7 +55,7 @@ def start(config_path: str = "config/config.yaml") -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Stuck-Task Digest scheduler.")
+    parser = argparse.ArgumentParser(description="Run the StatusScan scheduler.")
     parser.add_argument(
         "--config", default="config/config.yaml", help="Path to config.yaml (default: config/config.yaml)"
     )

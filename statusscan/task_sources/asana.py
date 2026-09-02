@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from stuck_task_digest.task_sources.base import TaskSource
+from statusscan.task_sources.base import TaskSource
 
 ASANA_API_BASE = "https://app.asana.com/api/1.0"
 

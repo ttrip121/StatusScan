@@ -1,4 +1,4 @@
-# Stuck-Task Digest configuration template.
+# StatusScan configuration template.
 #
 # Copy this file to config/config.yaml and fill it in. Secrets (tokens, passwords) should NOT
 # be hardcoded here - reference an environment variable with ${VAR_NAME} instead, and put the
@@ -38,7 +38,7 @@ email:
     host: "smtp.example.com"
     port: 587
     use_tls: true
-    from_address: "stuck-task-digest@example.com"
+    from_address: "statusscan@example.com"
     username: ${SMTP_USERNAME}
     password: ${SMTP_PASSWORD}
 

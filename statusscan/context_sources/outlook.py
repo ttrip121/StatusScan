@@ -30,9 +30,9 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from stuck_task_digest.context_sources.base import ContextSource
-from stuck_task_digest.context_sources.graph_auth import GraphClient
-from stuck_task_digest.models import Message
+from statusscan.context_sources.base import ContextSource
+from statusscan.context_sources.graph_auth import GraphClient
+from statusscan.models import Message
 
 
 def _tokenize(keyword: str) -> str:

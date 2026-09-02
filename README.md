@@ -1,4 +1,4 @@
-# StatusScan / Stuck-Task Digest
+# StatusScan
 
 Status Scan is a PM's daily assistant. It scans every task across your PM tools, flags
 anything late or due today, cross-references Slack/Teams/Outlook to figure out whether each
@@ -41,7 +41,7 @@ Every adapter normalizes into a common shape (`models.py`):
 ## Project layout
 
 ```
-stuck_task_digest/
+statusscan/
   models.py                 Task / Message / Classification dataclasses
   config.py                 Loads config.yaml, interpolates ${ENV_VAR} secrets
   task_sources/
@@ -79,7 +79,7 @@ the comments in `config.example.yaml` for every field.
 Run one pass by hand:
 
 ```bash
-python -m stuck_task_digest.main
+python -m statusscan.main
 ```
 
 ## Required API scopes / permissions per platform
@@ -136,10 +136,10 @@ reference the same block from both `teams` and `outlook` in config.
    it needs with an Exchange Online **application access policy**:
 
    ```powershell
-   New-DistributionGroup -Name "StuckTaskDigestMailboxes" -Members "pm@example.com","projects@example.com"
+   New-DistributionGroup -Name "StatusScanMailboxes" -Members "pm@example.com","projects@example.com"
    New-ApplicationAccessPolicy -AppId "<client-id>" `
-     -PolicyScopeGroupId "StuckTaskDigestMailboxes" -AccessRight RestrictAccess `
-     -Description "Restrict Stuck-Task Digest app to configured mailboxes"
+     -PolicyScopeGroupId "StatusScanMailboxes" -AccessRight RestrictAccess `
+     -Description "Restrict StatusScan app to configured mailboxes"
    ```
 
 6. List every mailbox you want searched in config: `outlook.pm_mailbox` (the PM's own
@@ -168,21 +168,21 @@ The default schedule is 3x/day — 8:00 AM, 1:00 PM, 6:00 PM — fully customiza
 ### Option A: APScheduler (long-running process)
 
 ```bash
-python -m stuck_task_digest.scheduler
+python -m statusscan.scheduler
 ```
 
 Keep it alive with your process manager of choice. Example `systemd` unit:
 
 ```ini
 [Unit]
-Description=Stuck-Task Digest scheduler
+Description=StatusScan scheduler
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/stuck-task-digest
-ExecStart=/opt/stuck-task-digest/.venv/bin/python -m stuck_task_digest.scheduler
+WorkingDirectory=/opt/statusscan
+ExecStart=/opt/statusscan/.venv/bin/python -m statusscan.scheduler
 Restart=on-failure
-EnvironmentFile=/opt/stuck-task-digest/.env
+EnvironmentFile=/opt/statusscan/.env
 
 [Install]
 WantedBy=multi-user.target
@@ -190,11 +190,11 @@ WantedBy=multi-user.target
 
 ### Option B: plain cron (no long-running process)
 
-Run `python -m stuck_task_digest.main` directly at each configured time — cron owns the
+Run `python -m statusscan.main` directly at each configured time — cron owns the
 schedule instead of APScheduler. Matches the default 8am/1pm/6pm schedule:
 
 ```cron
-0 8,13,18 * * * cd /opt/stuck-task-digest && /opt/stuck-task-digest/.venv/bin/python -m stuck_task_digest.main >> /var/log/stuck-task-digest.log 2>&1
+0 8,13,18 * * * cd /opt/statusscan && /opt/statusscan/.venv/bin/python -m statusscan.main >> /var/log/statusscan.log 2>&1
 ```
 
 Update the hours in both the crontab and `config/config.yaml`'s `schedule.times` if you
